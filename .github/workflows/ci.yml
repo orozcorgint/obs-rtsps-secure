@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows x64 / OBS 33
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install GNU Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal --component rustfmt --component clippy
+          "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Download OBS 33.0.1 for unit-test linking
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip'
+          curl.exe -L --fail --retry 3 -o "$env:RUNNER_TEMP\obs.zip" $url
+          if ((Get-FileHash "$env:RUNNER_TEMP\obs.zip" -Algorithm SHA256).Hash -ne '0D9436451C2D772B33428E3FDAE9776F071895C335DE17283176306FB72651D3') {
+            throw 'OBS checksum mismatch'
+          }
+          7z x "$env:RUNNER_TEMP\obs.zip" "-o$env:RUNNER_TEMP\obs" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'OBS archive extraction failed' }
+          "$env:RUNNER_TEMP\obs\bin\64bit" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Format, build, test, and lint
+        shell: pwsh
+        run: |
+          cargo +stable-x86_64-pc-windows-gnu fmt -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tools/build_release_windows.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +stable-x86_64-pc-windows-gnu test --release --locked --target x86_64-pc-windows-gnu
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +stable-x86_64-pc-windows-gnu clippy --locked --all-targets --target x86_64-pc-windows-gnu -- -D warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package installer and ZIP
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\nsis-3.11.zip"
+          curl.exe -L --fail --retry 3 -o $zip 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip'
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS download failed' }
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne 'C7D27F780DDB6CFFB4730138CD1591E841F4B7EDB155856901CDF5F214394FA1') {
+            throw 'NSIS checksum mismatch'
+          }
+          Expand-Archive -LiteralPath $zip -DestinationPath "$env:RUNNER_TEMP\nsis" -Force
+          $nsis = Get-ChildItem "$env:RUNNER_TEMP\nsis" -Filter makensis.exe -Recurse | Select-Object -First 1
+          if (-not $nsis) { throw 'NSIS compiler not found' }
+          ./tools/package_windows.ps1 -MakeNSIS $nsis.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tools/package_windows.ps1 -MakeNSIS $nsis.FullName -SandboxTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Smoke-test installer upgrade and uninstall
+        shell: pwsh
+        run: |
+          $testDir = Join-Path $env:RUNNER_TEMP "rtsps-installer-smoke"
+          New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $testDir "rtsps_secure.dll") -Value "old dll" -NoNewline
+          Set-Content -LiteralPath (Join-Path $testDir "sentinel.txt") -Value "keep" -NoNewline
+          $install = Start-Process -FilePath "dist\rtsps-secure-test-installer.exe" -ArgumentList @("/S", "/D=$testDir") -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Sandbox installer failed: $($install.ExitCode)" }
+          $expected = (Get-FileHash "target\x86_64-pc-windows-gnu\release\rtsps_secure.dll" -Algorithm SHA256).Hash
+          if ((Get-FileHash (Join-Path $testDir "rtsps_secure.dll") -Algorithm SHA256).Hash -ne $expected) { throw "Installed DLL mismatch" }
+          $backups = @(Get-ChildItem (Join-Path $testDir "_test_backups") -Filter "*.dll")
+          if ($backups.Count -ne 1) { throw "Expected exactly one backup DLL" }
+          $uninstall = Start-Process -FilePath (Join-Path $testDir "Uninstall.exe") -ArgumentList @("/S", "_?=$testDir") -PassThru -Wait
+          if ($uninstall.ExitCode -ne 0) { throw "Sandbox uninstaller failed: $($uninstall.ExitCode)" }
+          if (Test-Path (Join-Path $testDir "rtsps_secure.dll")) { throw "Uninstall left the plugin DLL" }
+          if (-not (Test-Path (Join-Path $testDir "sentinel.txt"))) { throw "Uninstall removed an unrelated file" }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64-unsigned-preview
+          path: |
+            dist/*-windows-x64.zip
+            dist/*-windows-x64-setup.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  linux-build:
+    name: Linux x64 / build only (experimental)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libobs-dev
+      - run: cargo build --release --locked
+      - run: cargo test --release --locked
+      # This job does not test an OBS 33 runtime or publish a Linux package.
+
+  macos-build:
+    name: macOS / build only (experimental)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked
+      # Dynamic symbol lookup is not a runtime test; no macOS bundle is published.

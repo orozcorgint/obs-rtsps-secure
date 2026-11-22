@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible problem without including private data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include real camera addresses, certificates, passwords, OBS scenes, or unredacted logs.
+        Security issues must follow SECURITY.md instead of this public form.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and the smallest steps that reproduce it.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Plugin, OBS, and operating-system versions
+      placeholder: "0.1.0, OBS 33.0.1, Windows 11 24H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows x64
+        - Linux x64 (build-only experiment)
+        - macOS (build-only experiment)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Remove private addresses, certificates, scene contents, and tokens first.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed private data from this report.
+          required: true
+        - label: I reproduced the issue with the latest prerelease.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

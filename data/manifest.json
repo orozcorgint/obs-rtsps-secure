@@ -1,0 +1,16 @@
+{
+  "display_name": "RTSPS Secure",
+  "id": "com.github.orozcorgint.rtsps-secure",
+  "version": "0.1.0",
+  "os_arch": "x86_64",
+  "name": "rtsps_secure",
+  "description": "Certificate-pinned RTSPS source for OBS Studio",
+  "long_description": "Receives RTSPS video and audio after verifying the camera's exact TLS certificate.",
+  "urls": {
+    "repository": "https://github.com/orozcorgint/obs-rtsps-secure",
+    "website": "https://github.com/orozcorgint/obs-rtsps-secure",
+    "support": "https://github.com/orozcorgint/obs-rtsps-secure/issues"
+  },
+  "has_banner": false,
+  "has_icon": false
+}

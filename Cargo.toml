@@ -1,0 +1,27 @@
+[package]
+name = "obs-rtsps-secure"
+version = "0.1.0"
+edition = "2021"
+description = "Certificate-pinned RTSPS source for OBS Studio"
+authors = ["orozcorgint"]
+repository = "https://github.com/orozcorgint/obs-rtsps-secure"
+readme = "README.md"
+keywords = ["obs", "rtsps", "tls", "camera", "streaming"]
+categories = ["multimedia::video"]
+license = "MIT"
+publish = false
+
+[lib]
+name = "rtsps_secure"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+base64 = "0.22"
+ring = "0.17"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+url = "2"
+x509-parser = "0.18"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
