@@ -16,7 +16,7 @@ name = "rtsps_secure"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 ring = "0.17"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-pemfile = "2"
