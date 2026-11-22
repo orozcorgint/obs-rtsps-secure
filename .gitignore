@@ -1,0 +1,28 @@
+# Build artifacts
+/target/
+/dist/
+/reference/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Camera certificates, keys, and local settings
+*.pem
+*.crt
+*.cer
+*.key
+*.p12
+*.pfx
+*.der
+*.env
+.env*
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini

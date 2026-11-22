@@ -1,0 +1,4 @@
+# macOS resolves libobs symbols from the running OBS process. A real OBS runtime
+# test is still required before distributing a macOS build.
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-arg=-Wl,-undefined,dynamic_lookup"]
